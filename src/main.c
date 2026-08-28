@@ -73,7 +73,8 @@ static const char *menu_labels[] = {
 #define SCAN_BOOTLD_BTN     (1 << 3)
 #define BLE_NEXT_STEP       (1 << 4)
 #define CLOCK_TICK          (1 << 5)
-#define STOPWATCH_TICK  (1 << 6)
+#define STOPWATCH_TICK  	(1 << 6)
+#define BLE_OFF_DONE 		(1 << 7)
 
 typedef enum {
     SW_STOPPED,
@@ -242,6 +243,12 @@ static uint16_t common_tasks(tmosTaskID task_id, uint16_t events)
 		sw_centiseconds++;
 		disp_stopwatch();
 		return events ^ STOPWATCH_TICK;
+	}
+
+	if (events & BLE_OFF_DONE) {
+		ble_disable_advertise();
+		return_to_menu();
+		return events ^ BLE_OFF_DONE;
 	}
 
 	return 0;
@@ -804,6 +811,13 @@ static void mode_setup_normal()
 	start_normal_animation();
 }
 
+static void disp_ble_off()
+{
+    memset(fb, 0, sizeof(fb));
+    fb_puts_small("BLUETOOTH", 9, 4, 0);
+    fb_puts_small("OFF", 3, 4, 6);
+}
+
 void handle_after_rx()
 {
     if (badge_cfg.reset_rx) {
@@ -813,7 +827,9 @@ void handle_after_rx()
         tmos_stop_task(common_taskid, STOPWATCH_TICK);
         sw_state = SW_STOPPED;
         clock_active = 0;
-        mode_setup_normal();
+        stop_all_animation();
+        disp_ble_off();
+        tmos_start_task(common_taskid, BLE_OFF_DONE, 1500000 / 625);  
     }
 }
 
