@@ -15,7 +15,7 @@ static uint8_t TxCharVal[256];
 static uint16_t TxLen;
 
 static const uint16_t RxCharUUID = 0xF057;
-static uint8_t RxCharProps = GATT_PROP_WRITE;
+static uint8_t RxCharProps = GATT_PROP_WRITE | GATT_PROP_WRITE_NO_RSP;
 #define RxCharVal TxCharVal
 static gattCharCfg_t TxCCCD[1];
 
