@@ -6,8 +6,10 @@
 #include "CH58x_common.h"
 
 #ifndef BLE_BUFF_LEN
-// MTU = 64 but clients should request new MTU, otherwise default will be 23
-#define BLE_BUFF_LEN (64 + 4)
+// MTU = 128 but clients should request new MTU, otherwise default will be 23.
+// 64 was too small for stream_bitmap: a full 44-column frame is 89 bytes and
+// did not fit one ATT write, so every frame became a Write Long.
+#define BLE_BUFF_LEN (128 + 4)
 #endif
 
 #ifndef BLE_TX_NUM_EVENT
