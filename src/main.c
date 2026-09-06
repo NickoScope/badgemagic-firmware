@@ -333,7 +333,7 @@ int streaming_enabled;
 #define KEY_EVENT_RELEASE 0x80
 #define KEY_EVENT_EXIT    0x00
 
-static btn_handler_t saved_onepress[2], saved_longpress[2];
+static btn_handler_t saved_onepress[KEY2 + 1], saved_longpress[KEY2 + 1];
 
 static void key_event(uint8_t code)
 {
@@ -384,15 +384,14 @@ static void streaming_take_buttons(void)
 
 uint8_t streaming_setting(uint8_t *params, uint16_t len)
 {
+	if (len < 1) {
+		return -2;
+	}
 	if (params[0] == 0x00) { // enter streaming mode
 		/* A second "enter" must not save our own handlers as the ones to
 		 * restore, or the menu would never come back. */
 		if (!streaming_enabled) {
 			stop_all_animation();
-			/* The clock and stopwatch redraw the framebuffer on their own
-			 * tick; left running they draw over the streamed frames. */
-			tmos_stop_task(common_taskid, CLOCK_TICK);
-			tmos_stop_task(common_taskid, STOPWATCH_TICK);
 			streaming_take_buttons();
 			streaming_enabled = 1;
 		}
