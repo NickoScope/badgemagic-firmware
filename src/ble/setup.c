@@ -70,7 +70,7 @@ void tmos_clockInit(void)
 	TMOS_TimerInit(0);
 }
 
-void ble_hardwareInit(void)
+int ble_hardwareInit(void)
 {
 	bleConfig_t cfg;
 	memset(&cfg, 0, sizeof(bleConfig_t));
@@ -95,9 +95,11 @@ void ble_hardwareInit(void)
 	if (st != SUCCESS) {
 		/* ERR_MEM_ALLOCATE_SIZE (0x02) means MEMLen is too small for
 		 * BufNumber x BufMaxLen -- the one failure a larger BLE_BUFF_LEN can
-		 * introduce. Logged in DEBUG builds (PRINT is empty in release) so that
-		 * it does not surface only later as flaky ATT or a dropped link while
-		 * the badge still advertises. */
+		 * introduce. PRINT is empty in release builds, so the caller has to
+		 * act on the status. On a chip whose factory MAC reads back, every
+		 * remaining failure is a compile-time configuration error. */
 		PRINT("ble: BLE_LibInit failed: 0x%02x\n", st);
+		return st;
 	}
+	return 0;
 }

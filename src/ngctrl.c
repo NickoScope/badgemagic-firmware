@@ -153,6 +153,7 @@ static uint8_t cfg_led_brightness(uint8_t *val, uint16_t len)
 	PRINT(__func__);
 	PRINT("\n");
 
+	if (len < 1) return -2;
 	uint8_t lvl = val[0];
 	if (lvl >= BRIGHTNESS_LEVELS)
 		return -2;
@@ -195,11 +196,12 @@ const uint8_t (*cmd_lut[])(uint8_t *val, uint16_t len) = {
 #define CMD_LUT_LEN (sizeof(cmd_lut) / sizeof(cmd_lut[0]))
 
 /* Reported when the packet never reaches a handler at all: empty, an unknown
- * command code, or a command with no implementation. 0xFF is what a handler
- * returns for the common "parameters out of range" case (`return -1` in a
- * uint8_t); handlers also use -2..-4 for more specific failures, so this value
- * marks the coarsest class of failure rather than a single shared convention. */
-#define NG_ERR_INVALID  0xFF
+ * command code, or a command with no implementation. Handlers report their
+ * own failures as -1..-4 (0xFF..0xFC in the uint8_t status byte), so this
+ * value stays outside that range: over a Write Command the notification is
+ * the only feedback, and a client must be able to tell "rejected before any
+ * handler" from "a handler rejected the parameters". */
+#define NG_ERR_INVALID  0xF0
 
 uint8_t ng_parse(uint8_t *val, uint16_t len)
 {

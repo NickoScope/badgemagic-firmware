@@ -81,7 +81,7 @@ The "mode" bytes are a combination of two 4 bit values. The high nibble describe
     A Write Command (without response) carries no ATT acknowledgement and
     therefore no backpressure: a client using it must pace its own writes,
     otherwise it floods the host queue. Protocol errors on that path are
-    reported only through the 0xF056 notification, as `0xff`.
+    reported only through the 0xF056 notification, as `0xf0` (see below).
 - Characteristic: 0xF056 (128-bit equivalent:
   0000f056-0000-1000-8000-00805f9b34fb)
   - Notify property: to return error codes
@@ -115,6 +115,18 @@ Supported functions/commands:
 
 The client app should enable notifications for the characteristic to receive the
 returned error code (e.g., by using setCharacteristicNotification() on Android).
+
+Every packet is answered with one status byte on 0xF056:
+
+- `0x00`: the command succeeded.
+- `0xff`..`0xfc`: the command's handler rejected it; the meaning is listed
+  per command below (`0xff` is the common "parameters out of range").
+- `0xf0`: the packet never reached a handler -- it was empty, the command
+  code is unknown, or the command has no implementation. Over a Write
+  Request the same cases also fail the ATT write; over a Write Command this
+  byte is the only feedback.
+- Any other non-zero value is handler specific: `save_cfg` forwards the
+  flash driver's own status (documented there as `0x01`).
 
 ##### power_setting
 
@@ -239,8 +251,10 @@ Parameters:
 
 Returns:
 
-- Parameters out of range: `0xff`.
-- `speed_ms` or `brightness_level` is out of allowed range: `0x02`.
+- Unknown sub-command (first byte above `0x01`): `0xff`.
+- `speed_ms` below the minimum: `0xff`.
+- Empty packet, a sub-command without its full parameter, or
+  `brightness_level` above 3: `0xfe`.
 - Success: `0x00`.
 
 #### Example

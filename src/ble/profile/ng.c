@@ -73,14 +73,18 @@ static bStatus_t read_handler(uint16_t connHandle, gattAttribute_t *pAttr,
 	}
 
 	if (uuid == TxCharUUID) {
-		/* TxLen is the amount of valid data in TxCharVal. A Read Blob with an
-		 * offset past it would make TxLen-offset wrap in uint16_t and the copy
-		 * below would hand out up to maxLen bytes of whatever follows the
-		 * buffer -- a larger MTU makes that window larger, not smaller. */
-		if (offset > TxLen) {
+		/* TxLen is the amount of valid data in TxCharVal. The characteristic
+		 * is readable, but nothing sets TxLen yet, so a read returns zero
+		 * bytes. The guard must not trust it either way: bound it by the
+		 * buffer, and refuse a Read Blob offset past it -- otherwise
+		 * TxLen-offset wraps in uint16_t and the copy below hands out up to
+		 * maxLen bytes of whatever follows the buffer. A larger MTU makes
+		 * that window larger. */
+		uint16_t valid = MIN(TxLen, sizeof(TxCharVal));
+		if (offset > valid) {
 			return ATT_ERR_INVALID_OFFSET;
 		}
-		*pLen = MIN(TxLen-offset, maxLen);
+		*pLen = MIN(valid - offset, maxLen);
 		tmos_memcpy(pValue, &pAttr->pValue[offset], *pLen);
 		return SUCCESS;
 	}
