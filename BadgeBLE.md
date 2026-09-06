@@ -138,6 +138,35 @@ Returns:
 - Parameters out of range: `0xff`.
 - Success: `0x00`.
 
+##### Buttons while streaming
+
+While streaming mode is active the host owns the display, so the badge hands
+it the buttons as well. Every debounced edge of KEY1 and KEY2 is reported on
+the 0xF056 characteristic as a two-byte notification:
+
+| Notification | Meaning                                   |
+| ------------ | ----------------------------------------- |
+| `0xE0 0x01`  | KEY1 pressed                              |
+| `0xE0 0x81`  | KEY1 released                             |
+| `0xE0 0x02`  | KEY2 pressed                              |
+| `0xE0 0x82`  | KEY2 released                             |
+| `0xE0 0x00`  | the badge left streaming mode by itself   |
+
+Bit 7 of the second byte marks a release. The firmware reports only the
+physical edges; what a press means (long, double, chord, auto-repeat) is for
+the host to decide from the edges and their timing. Command status codes are
+always a single byte, so the two forms cannot be confused; a client that does
+not expect events can ignore any two-byte notification.
+
+The badge keeps one gesture for itself: holding KEY2 for about half a second
+leaves streaming mode, restores the normal button behaviour, sends
+`0xE0 0x00` and returns to the menu, so a badge streaming from a host that
+went away always has a way out. The host must stop sending frames when it
+receives that event and treat every key as released. Leaving streaming mode
+with `0x01` restores the buttons silently. Events are only sent while the
+client has notifications enabled on 0xF056. KEY3 and KEY4 on four-button
+boards keep their normal behaviour.
+
 ##### stream_bitmap
 
 Function/Command code: `0x03`.
