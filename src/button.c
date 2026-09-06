@@ -9,9 +9,13 @@
 
 static volatile void (*onePressHandler[KEY_INDEX])(void) = { NULL };
 static volatile void (*longPressHandler[KEY_INDEX])(void) = { NULL };
+static volatile void (*pressHandler[KEY_INDEX])(void) = { NULL };
+static volatile void (*releaseHandler[KEY_INDEX])(void) = { NULL };
 
 static volatile bool onePressPending[KEY_INDEX] = { false };
 static volatile bool longPressPending[KEY_INDEX] = { false };
+static volatile bool pressPending[KEY_INDEX] = { false };
+static volatile bool releasePending[KEY_INDEX] = { false };
 
 static tmosTaskID button_task_id = INVALID_TASK_ID;
 #define BTN_PRESS (1 << 0)
@@ -44,9 +48,40 @@ void btn_onLongPress(int key, void (*handler)(void))
 	longPressHandler[key] = handler;
 }
 
+void btn_onPress(int key, btn_handler_t handler)
+{
+	if ((unsigned)key >= KEY_INDEX) return;
+	pressHandler[key] = handler;
+}
+
+void btn_onRelease(int key, btn_handler_t handler)
+{
+	if ((unsigned)key >= KEY_INDEX) return;
+	releaseHandler[key] = handler;
+}
+
+btn_handler_t btn_getOnePress(int key)
+{
+	if ((unsigned)key >= KEY_INDEX) return NULL;
+	return (btn_handler_t)onePressHandler[key];
+}
+
+btn_handler_t btn_getLongPress(int key)
+{
+	if ((unsigned)key >= KEY_INDEX) return NULL;
+	return (btn_handler_t)longPressHandler[key];
+}
+
 void btn_tick(void)
 {
 	for (int i = 0; i < KEY_INDEX; i++) {
+		/* Edge first, then the derived events, then the other edge: a tap
+		 * that lands whole between two ticks is still delivered in the
+		 * order it happened. */
+		if (pressPending[i]) {
+			pressPending[i] = false;
+			if (pressHandler[i]) pressHandler[i]();
+		}
 		if (onePressPending[i]) {
 			onePressPending[i] = false;
 			if (onePressHandler[i]) onePressHandler[i]();
@@ -54,6 +89,10 @@ void btn_tick(void)
 		if (longPressPending[i]) {
 			longPressPending[i] = false;
 			if (longPressHandler[i]) longPressHandler[i]();
+		}
+		if (releasePending[i]) {
+			releasePending[i] = false;
+			if (releaseHandler[i]) releaseHandler[i]();
 		}
 	}
 }
@@ -105,6 +144,12 @@ static void check(int k)
 	if (k >= KEY_INDEX) return; // TODO: assert instead
 
 	if (debounce(k, isPressed(k))) {
+		if (hold[k] == 0) {
+			pressPending[k] = true;
+			if (button_task_id != INVALID_TASK_ID) {
+				tmos_set_event(button_task_id, BTN_PRESS);
+			}
+		}
 		hold[k]++;
 		if (hold[k] >= LONGPRESS_THRES && is_longpress[k] == 0) {
 			is_longpress[k] = 1;
@@ -114,6 +159,12 @@ static void check(int k)
 			}
 		}
 	} else {
+		if (hold[k] > 0) {
+			releasePending[k] = true;
+			if (button_task_id != INVALID_TASK_ID) {
+				tmos_set_event(button_task_id, BTN_PRESS);
+			}
+		}
 		if (hold[k] > 0 && hold[k] < LONGPRESS_THRES) {
 			onePressPending[k] = true;
 			if (button_task_id != INVALID_TASK_ID) {

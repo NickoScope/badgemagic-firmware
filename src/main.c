@@ -320,14 +320,88 @@ static void stop_all_animation()
 
 int streaming_enabled;
 
+/* While the host streams it owns the display, so it gets the buttons as
+ * well: every debounced edge goes out on F056 as 0xE0 <code>, KEY1 = 0x01,
+ * KEY2 = 0x02, bit 7 set on release. What a press means -- long, double,
+ * chord, auto-repeat -- is for the host to decide from the edges and their
+ * timing; the firmware only reports the physics. It keeps one gesture for
+ * itself, a long KEY2, as the way back to the menu without a host, and
+ * announces that with 0xE0 0x00 so the host can drop its key state.
+ * A two-byte notification cannot be confused with a command status, which
+ * is always one byte. */
+#define KEY_EVENT_PREFIX  0xE0
+#define KEY_EVENT_RELEASE 0x80
+#define KEY_EVENT_EXIT    0x00
+
+static btn_handler_t saved_onepress[2], saved_longpress[2];
+
+static void key_event(uint8_t code)
+{
+	uint8_t ev[2] = { KEY_EVENT_PREFIX, code };
+	ng_notify(ev, sizeof(ev));
+}
+
+static void key1_down(void) { key_event(0x01); }
+static void key1_up(void)   { key_event(0x01 | KEY_EVENT_RELEASE); }
+static void key2_down(void) { key_event(0x02); }
+static void key2_up(void)   { key_event(0x02 | KEY_EVENT_RELEASE); }
+
+static void streaming_release_buttons(void)
+{
+	btn_onPress(KEY1, NULL);
+	btn_onRelease(KEY1, NULL);
+	btn_onPress(KEY2, NULL);
+	btn_onRelease(KEY2, NULL);
+	btn_onOnePress(KEY1, saved_onepress[0]);
+	btn_onOnePress(KEY2, saved_onepress[1]);
+	btn_onLongPress(KEY1, saved_longpress[0]);
+	btn_onLongPress(KEY2, saved_longpress[1]);
+}
+
+static void streaming_exit_by_key(void)
+{
+	streaming_enabled = 0;
+	streaming_release_buttons();
+	key_event(KEY_EVENT_EXIT);
+	return_to_menu();
+}
+
+static void streaming_take_buttons(void)
+{
+	saved_onepress[0] = btn_getOnePress(KEY1);
+	saved_onepress[1] = btn_getOnePress(KEY2);
+	saved_longpress[0] = btn_getLongPress(KEY1);
+	saved_longpress[1] = btn_getLongPress(KEY2);
+	btn_onOnePress(KEY1, NULL);
+	btn_onOnePress(KEY2, NULL);
+	btn_onLongPress(KEY1, NULL);
+	btn_onLongPress(KEY2, streaming_exit_by_key);
+	btn_onPress(KEY1, key1_down);
+	btn_onRelease(KEY1, key1_up);
+	btn_onPress(KEY2, key2_down);
+	btn_onRelease(KEY2, key2_up);
+}
+
 uint8_t streaming_setting(uint8_t *params, uint16_t len)
 {
 	if (params[0] == 0x00) { // enter streaming mode
-		stop_all_animation();
-		streaming_enabled = 1;
+		/* A second "enter" must not save our own handlers as the ones to
+		 * restore, or the menu would never come back. */
+		if (!streaming_enabled) {
+			stop_all_animation();
+			/* The clock and stopwatch redraw the framebuffer on their own
+			 * tick; left running they draw over the streamed frames. */
+			tmos_stop_task(common_taskid, CLOCK_TICK);
+			tmos_stop_task(common_taskid, STOPWATCH_TICK);
+			streaming_take_buttons();
+			streaming_enabled = 1;
+		}
 	} else if (params[0] == 0x01) { // return to normal mode
-		resume_from_streaming();
-		streaming_enabled = 0;
+		if (streaming_enabled) {
+			streaming_release_buttons();
+			resume_from_streaming();
+			streaming_enabled = 0;
+		}
 	}
 	return 0;
 }
