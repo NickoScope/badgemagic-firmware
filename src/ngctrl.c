@@ -194,13 +194,30 @@ const uint8_t (*cmd_lut[])(uint8_t *val, uint16_t len) = {
 
 #define CMD_LUT_LEN (sizeof(cmd_lut) / sizeof(cmd_lut[0]))
 
+/* Reported when the packet never reaches a handler at all: empty, an unknown
+ * command code, or a command with no implementation. 0xFF is what a handler
+ * returns for the common "parameters out of range" case (`return -1` in a
+ * uint8_t); handlers also use -2..-4 for more specific failures, so this value
+ * marks the coarsest class of failure rather than a single shared convention. */
+#define NG_ERR_INVALID  0xFF
+
 uint8_t ng_parse(uint8_t *val, uint16_t len)
 {
-	if (len < 1) return bleInvalidRange;
+	uint8_t err = NG_ERR_INVALID;
+
+	/* The characteristic accepts Write Command as well as Write Request, and a
+	 * Write Command carries no ATT response. The notification is then the only
+	 * channel a client has, so protocol errors must be reported there too --
+	 * otherwise an unacknowledged write of a malformed packet is silent. */
+	if (len < 1) {
+		ng_notify(&err, 1);
+		return bleInvalidRange;
+	}
 	uint8_t cmd = val[0];
 	PRINT("LUT_LEN: %02x \n", CMD_LUT_LEN);
 	if (cmd >= CMD_LUT_LEN) {
 		PRINT("invalid command!\n");
+		ng_notify(&err, 1);
 		return bleInvalidRange;
 	}
 
@@ -210,6 +227,8 @@ uint8_t ng_parse(uint8_t *val, uint16_t len)
 		ng_notify(&ret, 1); // response to the client app
 	} else {
 		PRINT("function is not defined!\n");
+		ng_notify(&err, 1);
+		return bleInvalidRange;
 	}
 	return SUCCESS;
 }

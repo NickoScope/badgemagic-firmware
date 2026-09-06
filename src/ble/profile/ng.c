@@ -73,6 +73,13 @@ static bStatus_t read_handler(uint16_t connHandle, gattAttribute_t *pAttr,
 	}
 
 	if (uuid == TxCharUUID) {
+		/* TxLen is the amount of valid data in TxCharVal. A Read Blob with an
+		 * offset past it would make TxLen-offset wrap in uint16_t and the copy
+		 * below would hand out up to maxLen bytes of whatever follows the
+		 * buffer -- a larger MTU makes that window larger, not smaller. */
+		if (offset > TxLen) {
+			return ATT_ERR_INVALID_OFFSET;
+		}
 		*pLen = MIN(TxLen-offset, maxLen);
 		tmos_memcpy(pValue, &pAttr->pValue[offset], *pLen);
 		return SUCCESS;
