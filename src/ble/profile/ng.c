@@ -155,7 +155,7 @@ bStatus_t ng_notify(uint8_t *val, uint8_t len)
 		 * WCH's own example frees only on failure: EVT/EXAM/BLE/Peripheral/
 		 * APP/peripheral.c, peripheralChar4Notify(). */
 		GATT_bm_free((gattMsg_t *)&noti, ATT_HANDLE_VALUE_NOTI);
-		PRINT("ble: noti sending failed\n");
+		PRINT("ble: noti sending failed: 0x%02x\n", ret);
 		return ret;
 	}
 
