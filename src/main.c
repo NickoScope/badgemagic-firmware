@@ -392,6 +392,11 @@ uint8_t streaming_setting(uint8_t *params, uint16_t len)
 		 * restore, or the menu would never come back. */
 		if (!streaming_enabled) {
 			stop_all_animation();
+			/* The clock and stopwatch redraw the framebuffer on their own
+			 * tick; left running they draw over the streamed frames. */
+			tmos_stop_task(common_taskid, CLOCK_TICK);
+			tmos_stop_task(common_taskid, STOPWATCH_TICK);
+			sw_state = SW_STOPPED;
 			streaming_take_buttons();
 			streaming_enabled = 1;
 		}
